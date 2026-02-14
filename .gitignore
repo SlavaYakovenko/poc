@@ -46,3 +46,7 @@ out/
 .project
 .settings/
 bin/
+
+# Python
+.venv/
+__pycache__/
