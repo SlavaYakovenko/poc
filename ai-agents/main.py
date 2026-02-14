@@ -13,12 +13,13 @@ class Environment:
         self.posts = []
         self.next_id = 0
 
-    def create_post(self, author, content):
+    def create_post(self, author, content, stance):
         post = {
             "id": self.next_id,
             "author": author,
             "content": content,
             "score": 0,
+            "stance": stance
         }
         self.posts.append(post)
         self.next_id += 1
@@ -43,15 +44,35 @@ class Agent:
 
         # If no posts yet → create one
         if not posts:
-            return ("post", f"{self.name} starts discussion about AI governance.")
+            content, stance = self.generate_content()
+            return ("post", (content, stance))
+            # return ("post", f"{self.name} starts discussion about AI governance.")
 
         action = random.choice(["post", "upvote", "ignore"])
 
         if action == "post":
-            return ("post", self.generate_content())
+            content, stence = self.generate_content()
+            return ("post", (content, stence))
 
         elif action == "upvote":
-            target = random.choice(posts)
+            preferred = []
+
+            for p in posts:
+                if self.name == "Optimist" and p["stance"] == "positive":
+                    preferred.append(p)
+                elif self.name == "Skeptic" and p["stance"] == "negative":
+                    preferred.append(p)
+                elif self.name == "Analyst" and p["stance"] == "neutral":
+                    preferred.append(p)
+                elif self.name == "Marketer" and p["score"] >= 1:
+                    preferred.append(p)
+                elif self.name == "Provocateur" and p["stance"] == "negative":
+                    preferred.append(p)
+
+            if preferred:
+                target = random.choice(preferred)
+            else:
+                target = random.choice(posts)
             return ("upvote", target["id"])
 
         else:
@@ -59,16 +80,16 @@ class Agent:
 
     def generate_content(self):
         if self.name == "Optimist":
-            return "AI will improve society dramatically."
+            return "AI will improve society dramatically.", "positive"
         if self.name == "Skeptic":
-            return "AI risks are underestimated."
+            return "AI risks are underestimated.", "negative"
         if self.name == "Analyst":
-            return "We need structured evaluation metrics."
+            return "We need structured evaluation metrics.",  "neutral"
         if self.name == "Marketer":
-            return "This AI trend is a massive opportunity!"
+            return "This AI trend is a massive opportunity!", "positive"
         if self.name == "Provocateur":
-            return "AI will destroy most jobs soon."
-        return "Neutral statement."
+            return "AI will destroy most jobs soon.", "negative"
+        return "Neutral statement.", "neutral"
 
 # ---------- METRICS ----------
 
@@ -91,7 +112,8 @@ def main():
             action, payload = agent.decide(env)
 
             if action == "post":
-                env.create_post(agent.name, payload)
+                content, stence = payload
+                env.create_post(agent.name, content, stence)
                 print(f"{agent.name} posted: {payload}")
 
             elif action == "upvote":
