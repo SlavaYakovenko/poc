@@ -46,7 +46,6 @@ class Agent:
         if not posts:
             content, stance = self.generate_content()
             return ("post", (content, stance))
-            # return ("post", f"{self.name} starts discussion about AI governance.")
 
         action = random.choice(["post", "upvote", "ignore"])
 
@@ -69,7 +68,9 @@ class Agent:
                 elif self.name == "Provocateur" and p["stance"] == "negative":
                     preferred.append(p)
 
-            if preferred:
+            BIAS_PROBABILITY = 0.7
+
+            if preferred and random.random() < BIAS_PROBABILITY:
                 target = random.choice(preferred)
             else:
                 target = random.choice(posts)
