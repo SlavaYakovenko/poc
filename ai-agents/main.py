@@ -24,10 +24,11 @@ class Environment:
         self.posts.append(post)
         self.next_id += 1
 
-    def upvote(self, post_id):
+    def upvote(self, post_id, voter: Agent):
         for p in self.posts:
             if p["id"] == post_id:
-                p["score"] += 1
+                weight = 1 + voter.influence * 0.05
+                p["score"] += weight
 
     def get_recent_posts(self, limit=5):
         return self.posts[-limit:]
@@ -100,6 +101,14 @@ def calculate_influence(env):
         influence[post["author"]] += post["score"]
     return influence
 
+def update_influence(agents, env):
+    influence_map = defaultdict(float)
+    for post in env.posts:
+        influence_map[post["author"]] += post["score"]
+
+    for agent in agents:
+        agent.influence = influence_map[agent.name]
+
 # ---------- MAIN LOOP ----------
 
 def main():
@@ -118,8 +127,10 @@ def main():
                 print(f"{agent.name} posted: {payload}")
 
             elif action == "upvote":
-                env.upvote(payload)
+                env.upvote(payload, agent)
                 print(f"{agent.name} upvoted post {payload}")
+
+        update_influence(agents, env)
 
     print("\n=== FINAL POSTS ===")
     for p in env.posts:
