@@ -1,5 +1,8 @@
 import random
+import hashlib
 from collections import defaultdict
+from llm import generate_post
+
 
 # ---------- CONFIG ----------
 
@@ -24,35 +27,63 @@ class Environment:
         self.posts.append(post)
         self.next_id += 1
 
-    def upvote(self, post_id, voter: Agent):
+    def upvote(self, post_id, voter):
         for p in self.posts:
             if p["id"] == post_id:
                 weight = 1 + voter.influence * 0.05
                 p["score"] += weight
 
-    def get_recent_posts(self, limit=5):
-        return self.posts[-limit:]
+    # def get_recent_posts(self, limit=5):
+    #     return self.posts[-limit:]
+        
+    def get_feed(self, top_k=3, recent_k=2):
+        if not self.posts:
+            return []
+
+        # Top by score
+        sorted_posts = sorted(self.posts, key=lambda p: p["score"], reverse=True)
+        top_posts = sorted_posts[:top_k]
+
+        # Most recent
+        recent_posts = self.posts[-recent_k:]
+
+        # Merge without duplicates
+        seen_ids = set()
+        feed = []
+
+        for p in top_posts + recent_posts:
+            if p["id"] not in seen_ids:
+                feed.append(p)
+                seen_ids.add(p["id"])
+
+        return feed
 
 # ---------- AGENT ----------
 
 class Agent:
-    def __init__(self, name):
+
+
+    def __init__(self, name, stance):
         self.name = name
         self.influence = 0
+        self.stance = stance
+        self.llm_cache = {}
 
     def decide(self, env: Environment):
-        posts = env.get_recent_posts()
+        posts = env.get_feed()
 
         # If no posts yet → create one
         if not posts:
-            content, stance = self.generate_content()
+            feed = env.get_feed()
+            content, stance = self.generate_content(feed)
             return ("post", (content, stance))
 
         action = random.choice(["post", "upvote", "ignore"])
 
         if action == "post":
-            content, stence = self.generate_content()
-            return ("post", (content, stence))
+            feed = env.get_feed()
+            content, stance = self.generate_content(feed)
+            return ("post", (content, stance))
 
         elif action == "upvote":
             preferred = []
@@ -80,18 +111,19 @@ class Agent:
         else:
             return ("ignore", None)
 
-    def generate_content(self):
-        if self.name == "Optimist":
-            return "AI will improve society dramatically.", "positive"
-        if self.name == "Skeptic":
-            return "AI risks are underestimated.", "negative"
-        if self.name == "Analyst":
-            return "We need structured evaluation metrics.",  "neutral"
-        if self.name == "Marketer":
-            return "This AI trend is a massive opportunity!", "positive"
-        if self.name == "Provocateur":
-            return "AI will destroy most jobs soon.", "negative"
-        return "Neutral statement.", "neutral"
+    def generate_content(self, feed):
+        feed_text = "\n".join([f"{p['author']}: {p['content']}" for p in feed])
+        feed_hash = hashlib.md5(feed_text.encode()).hexdigest()
+
+        key = (self.name, self.stance, feed_hash)
+
+        if key in self.llm_cache:
+            content = self.llm_cache[key]
+        else:
+            content = generate_post(self.name, self.stance, feed)
+            self.llm_cache[key] = content
+
+        return content, self.stance
 
 # ---------- METRICS ----------
 
@@ -111,9 +143,18 @@ def update_influence(agents, env):
 
 # ---------- MAIN LOOP ----------
 
+
 def main():
+    AGENTS_CONFIG = {
+    "Optimist": "positive",
+    "Skeptic": "negative",
+    "Analyst": "neutral",
+    "Marketer": "positive",
+    "Provocateur": "negative",
+    }
+
+    agents = [Agent(name, AGENTS_CONFIG[name]) for name in AGENT_NAMES]
     env = Environment()
-    agents = [Agent(name) for name in AGENT_NAMES]
 
     for step in range(STEPS):
         print(f"\n--- Step {step} ---")
